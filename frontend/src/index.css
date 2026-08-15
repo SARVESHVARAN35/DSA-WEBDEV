@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #0b1330;
+  --ink-2: #101b45;
+  --cobalt: #2451ff;
+  --cobalt-2: #5b7cff;
+  --sky: #e7ecff;
+  --mist: #f5f7ff;
+  --teal: #17c3b2;
+  --amber: #ffb020;
+  --slateink: #4b5876;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--mist);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Visible keyboard focus everywhere, per accessibility floor */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Signature element: the "pulse ring" — a circular progress ring used */
+/* for hero art, live-quiz indicators, and the in-quiz countdown timer */
+/* ------------------------------------------------------------------ */
+.pulse-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pulse-ring svg {
+  transform: rotate(-90deg);
+}
+
+.pulse-ring circle {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.pulse-ring .track {
+  stroke: rgba(36, 81, 255, 0.12);
+}
+
+.pulse-ring .progress {
+  stroke: var(--cobalt);
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--teal);
+  box-shadow: 0 0 0 0 rgba(23, 195, 178, 0.6);
+  animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(23, 195, 178, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(23, 195, 178, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(23, 195, 178, 0);
+  }
+}
+
+.bg-grid {
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.12) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+.gradient-hero {
+  background: radial-gradient(120% 120% at 100% 0%, #17224f 0%, var(--ink) 55%, #070c22 100%);
+}
+
+.card {
+  background: white;
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 2px rgba(15, 27, 69, 0.06), 0 8px 24px -8px rgba(15, 27, 69, 0.12);
+  border: 1px solid rgba(15, 27, 69, 0.06);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--cobalt) 0%, var(--cobalt-2) 100%);
+  color: white;
+  font-weight: 600;
+  border-radius: 0.85rem;
+  padding: 0.7rem 1.4rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 8px 20px -8px rgba(36, 81, 255, 0.6);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px -8px rgba(36, 81, 255, 0.65);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: white;
+  color: var(--ink);
+  font-weight: 600;
+  border-radius: 0.85rem;
+  padding: 0.7rem 1.4rem;
+  border: 1px solid rgba(15, 27, 69, 0.12);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.btn-secondary:hover {
+  border-color: var(--cobalt);
+  background: var(--sky);
+}
+
+.badge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+}
