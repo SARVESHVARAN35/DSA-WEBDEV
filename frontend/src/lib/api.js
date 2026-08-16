@@ -1,14 +1,24 @@
-import { supabase } from './supabaseClient';
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const SESSION_TOKEN_KEY = 'intellexa_session_token';
+
+export function getSessionToken() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(SESSION_TOKEN_KEY);
+}
+
+export function setSessionToken(token) {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    window.localStorage.setItem(SESSION_TOKEN_KEY, token);
+  } else {
+    window.localStorage.removeItem(SESSION_TOKEN_KEY);
+  }
+}
 
 async function request(path, { method = 'GET', body } = {}) {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
   const headers = { 'Content-Type': 'application/json' };
-  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+  const token = getSessionToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_URL}${path}`, {
     method,

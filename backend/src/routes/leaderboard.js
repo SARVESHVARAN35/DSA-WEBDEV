@@ -32,6 +32,7 @@ router.get('/:id/leaderboard', optionalAuth, async (req, res) => {
     .select('user_id, score, submitted_at, profiles(full_name, avatar_url, email)')
     .eq('quiz_id', quiz.id)
     .eq('status', 'submitted')
+    .eq('is_practice', false)
     .order('score', { ascending: false })
     .order('submitted_at', { ascending: true });
 

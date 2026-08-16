@@ -14,6 +14,11 @@ function statusOf(quiz, now = new Date()) {
   return 'ended';
 }
 
+function isQuestionReleased(question, now = new Date()) {
+  if (!question.available_at) return true;
+  return new Date(question.available_at) <= now;
+}
+
 // ---------------------------------------------------------------------
 // GET /api/quizzes — list (published only for normal users, all for admin)
 // ---------------------------------------------------------------------
@@ -51,8 +56,8 @@ router.get('/:id', optionalAuth, async (req, res) => {
   if (!quiz.is_published && !isAdmin) return res.status(404).json({ error: 'Quiz not found.' });
 
   const columns = isAdmin
-    ? 'id, quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, marks, position'
-    : 'id, quiz_id, question_text, option_a, option_b, option_c, option_d, marks, position';
+    ? 'id, quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, marks, position, available_at'
+    : 'id, quiz_id, question_text, option_a, option_b, option_c, option_d, marks, position, available_at';
 
   const { data: questions, error: qError } = await supabaseAdmin
     .from('questions')
@@ -61,8 +66,9 @@ router.get('/:id', optionalAuth, async (req, res) => {
     .order('position', { ascending: true });
 
   if (qError) return res.status(500).json({ error: qError.message });
+  const visibleQuestions = isAdmin ? questions : questions.filter((question) => isQuestionReleased(question));
 
-  res.json({ quiz: { ...quiz, status: statusOf(quiz) }, questions });
+  res.json({ quiz: { ...quiz, status: statusOf(quiz) }, questions: visibleQuestions });
 });
 
 // ---------------------------------------------------------------------
@@ -165,11 +171,12 @@ router.post('/:id/publish-results', requireAuth, requireAdmin, async (req, res) 
   if (updates.results_published) {
     const { data: attempts } = await supabaseAdmin
       .from('attempts')
-      .select('user_id')
+      .select('id')
       .eq('quiz_id', data.id)
-      .eq('status', 'submitted');
+      .eq('status', 'submitted')
+      .eq('is_practice', false);
     for (const attempt of attempts || []) {
-      await evaluateBadgesForAttempt({ userId: attempt.user_id, quizId: data.id });
+      await evaluateBadgesForAttempt({ attemptId: attempt.id });
     }
   }
 

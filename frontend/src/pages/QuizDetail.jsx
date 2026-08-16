@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { FullPageSpinner } from '../components/ProtectedRoute';
@@ -7,8 +7,9 @@ import Countdown from '../components/Countdown';
 
 export default function QuizDetail() {
   const { id } = useParams();
-  const { user, isAdmin, signInWithGoogle } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [quiz, setQuiz] = useState(null);
   const [questionCount, setQuestionCount] = useState(0);
   const [error, setError] = useState('');
@@ -28,7 +29,7 @@ export default function QuizDetail() {
   if (!quiz) return <FullPageSpinner />;
 
   async function handleStart() {
-    if (!user) return signInWithGoogle();
+    if (!user) return navigate('/login', { state: { from: location } });
     setStarting(true);
     try {
       await api.post(`/attempts/quizzes/${id}/start`);
@@ -73,7 +74,7 @@ export default function QuizDetail() {
             )}
             {quiz.status === 'live' && (
               <button onClick={handleStart} disabled={starting} className="btn-primary">
-                {starting ? 'Starting…' : user ? 'Start quiz' : 'Sign in to start'}
+                {starting ? 'Starting…' : user ? (isAdmin ? 'Practice quiz' : 'Start quiz') : 'Create profile to start'}
               </button>
             )}
             {quiz.status === 'ended' && (

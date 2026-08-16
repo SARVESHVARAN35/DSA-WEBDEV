@@ -20,6 +20,7 @@ const emptyQuestion = {
   option_d: '',
   correct_option: 'a',
   marks: 1,
+  available_at: '',
 };
 
 function toLocalInput(iso) {
@@ -118,7 +119,11 @@ export default function QuizEditor({ mode }) {
     e.preventDefault();
     setError('');
     try {
-      await api.post(`/quizzes/${id}/questions`, { ...newQuestion, position: questions.length });
+      await api.post(`/quizzes/${id}/questions`, {
+        ...newQuestion,
+        position: questions.length,
+        available_at: newQuestion.available_at ? new Date(newQuestion.available_at).toISOString() : null,
+      });
       setNewQuestion(emptyQuestion);
       loadQuiz();
       flash('Question added.');
@@ -129,7 +134,10 @@ export default function QuizEditor({ mode }) {
 
   async function updateQuestion(qid, patch) {
     try {
-      await api.put(`/questions/${qid}`, patch);
+      await api.put(`/questions/${qid}`, {
+        ...patch,
+        available_at: patch.available_at ? new Date(patch.available_at).toISOString() : null,
+      });
       loadQuiz();
     } catch (e) {
       setError(e.message);
@@ -151,7 +159,7 @@ export default function QuizEditor({ mode }) {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
-      <Link to="/admin" className="text-sm font-semibold text-cobalt hover:underline">← Back to admin</Link>
+      <Link to="/admin" className="text-sm font-semibold text-cobalt hover:underline">? Back to admin</Link>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-3xl font-bold text-ink">
@@ -172,7 +180,6 @@ export default function QuizEditor({ mode }) {
       {notice && <p className="mt-4 rounded-lg bg-teal/10 px-4 py-2 text-sm font-medium text-teal">{notice}</p>}
       {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</p>}
 
-      {/* Quiz details form */}
       <form onSubmit={saveQuizDetails} className="card mt-6 grid gap-4 p-6">
         <h2 className="font-display text-base font-bold text-ink">Details</h2>
         <Field label="Title">
@@ -214,17 +221,16 @@ export default function QuizEditor({ mode }) {
           </Field>
         </div>
         <button type="submit" disabled={saving} className="btn-primary w-fit">
-          {saving ? 'Saving…' : mode === 'create' ? 'Create quiz' : 'Save details'}
+          {saving ? 'Saving...' : mode === 'create' ? 'Create quiz' : 'Save details'}
         </button>
       </form>
 
       {mode === 'edit' && (
         <>
-          {/* Results publishing controls */}
           <div className="card mt-6 p-6">
             <h2 className="font-display text-base font-bold text-ink">Results &amp; leaderboard</h2>
             <p className="mt-1 text-sm text-slateink">
-              Scores stay hidden from users until you publish them — right away, or on a schedule.
+              Scores stay hidden from users until you publish them � right away, or on a schedule.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <span className={`badge-chip ${quiz.results_published ? 'bg-teal/15 text-teal' : 'bg-slateink/10 text-slateink'}`}>
@@ -244,13 +250,12 @@ export default function QuizEditor({ mode }) {
               </form>
             </div>
             <Link to={`/quizzes/${id}/leaderboard`} className="mt-3 inline-block text-xs font-semibold text-cobalt hover:underline">
-              Preview leaderboard →
+              Preview leaderboard ?
             </Link>
           </div>
 
-          {/* Questions */}
           <div className="card mt-6 p-6">
-            <h2 className="font-display text-base font-bold text-ink">Questions ({questions.length}) · {quiz.total_points} total points</h2>
+            <h2 className="font-display text-base font-bold text-ink">Questions ({questions.length}) � {quiz.total_points} total points</h2>
 
             <div className="mt-4 space-y-3">
               {questions.map((q, idx) => (
@@ -303,12 +308,20 @@ export default function QuizEditor({ mode }) {
                     onChange={(e) => setNewQuestion({ ...newQuestion, marks: Number(e.target.value) })}
                   />
                 </label>
+                <label className="flex items-center gap-2 text-sm text-slateink">
+                  Release at
+                  <input
+                    type="datetime-local"
+                    className="input !w-auto"
+                    value={newQuestion.available_at}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, available_at: e.target.value })}
+                  />
+                </label>
                 <button type="submit" className="btn-primary ml-auto !px-4 !py-2 text-sm">Add question</button>
               </div>
             </form>
           </div>
 
-          {/* Participants */}
           <div className="card mt-6 p-6">
             <h2 className="font-display text-base font-bold text-ink">Participants ({attempts.length})</h2>
             {attempts.length === 0 ? (
@@ -371,8 +384,11 @@ function QuestionRow({ index, question, onSave, onDelete }) {
     return (
       <div className="flex items-start justify-between gap-4 rounded-xl2 border border-ink/10 p-4">
         <div>
-          <p className="text-xs font-semibold text-slateink">Q{index + 1} · {question.marks} pt{question.marks > 1 ? 's' : ''}</p>
+          <p className="text-xs font-semibold text-slateink">Q{index + 1} � {question.marks} pt{question.marks > 1 ? 's' : ''}</p>
           <p className="mt-1 text-sm font-medium text-ink">{question.question_text}</p>
+          <p className="mt-1 text-xs text-slateink">
+            {question.available_at ? `Releases at ${new Date(question.available_at).toLocaleString()}` : 'Releases immediately'}
+          </p>
           <p className="mt-1 text-xs text-teal">Correct: {question.correct_option?.toUpperCase()}) {question[`option_${question.correct_option}`]}</p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -396,6 +412,12 @@ function QuestionRow({ index, question, onSave, onDelete }) {
           {['a', 'b', 'c', 'd'].map((o) => <option key={o} value={o}>{o.toUpperCase()}</option>)}
         </select>
         <input type="number" min={1} className="input !w-20" value={draft.marks} onChange={(e) => setDraft({ ...draft, marks: Number(e.target.value) })} />
+        <input
+          type="datetime-local"
+          className="input !w-auto"
+          value={toLocalInput(draft.available_at)}
+          onChange={(e) => setDraft({ ...draft, available_at: e.target.value })}
+        />
         <div className="ml-auto flex gap-2">
           <button onClick={() => setEditing(false)} className="btn-secondary !px-3 !py-1.5 text-xs">Cancel</button>
           <button

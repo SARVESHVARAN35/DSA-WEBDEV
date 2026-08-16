@@ -52,7 +52,7 @@ export default function Navbar() {
             </div>
           ) : (
             <Link to="/login" className="btn-primary !px-4 !py-2 text-sm">
-              Sign in
+              Create profile
             </Link>
           )}
         </div>

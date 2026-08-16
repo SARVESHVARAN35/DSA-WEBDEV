@@ -6,25 +6,33 @@ import { supabaseAdmin } from '../config/supabaseClient.js';
  * awards the same badge twice for the same quiz (unique constraint on
  * user_badges(user_id, badge_id, quiz_id)).
  */
-export async function evaluateBadgesForAttempt({ userId, quizId }) {
+export async function evaluateBadgesForAttempt({ attemptId }) {
   const { data: badges } = await supabaseAdmin.from('badges').select('*');
   if (!badges?.length) return [];
 
   const { data: attempt } = await supabaseAdmin
     .from('attempts')
     .select('*')
-    .eq('user_id', userId)
-    .eq('quiz_id', quizId)
+    .eq('id', attemptId)
     .single();
 
-  if (!attempt || attempt.status !== 'submitted') return [];
+  if (!attempt || attempt.status !== 'submitted' || attempt.is_practice) return [];
+
+  const { user_id: userId, quiz_id: quizId } = attempt;
 
   const percent = attempt.max_score > 0 ? (attempt.score / attempt.max_score) * 100 : 0;
+
+  const { count: correctAnswers } = await supabaseAdmin
+    .from('attempt_answers')
+    .select('id', { count: 'exact', head: true })
+    .eq('attempt_id', attempt.id)
+    .eq('is_correct', true);
 
   const { count: quizCount } = await supabaseAdmin
     .from('attempts')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
+    .eq('is_practice', false)
     .eq('status', 'submitted');
 
   // Rank on this quiz's leaderboard (only meaningful once results are published,
@@ -33,6 +41,7 @@ export async function evaluateBadgesForAttempt({ userId, quizId }) {
     .from('attempts')
     .select('user_id, score, submitted_at')
     .eq('quiz_id', quizId)
+    .eq('is_practice', false)
     .eq('status', 'submitted')
     .order('score', { ascending: false })
     .order('submitted_at', { ascending: true });
@@ -55,6 +64,9 @@ export async function evaluateBadgesForAttempt({ userId, quizId }) {
         break;
       case 'quiz_count':
         eligible = (quizCount || 0) >= badge.criteria_value;
+        break;
+      case 'correct_answers':
+        eligible = (correctAnswers || 0) >= badge.criteria_value;
         break;
       default:
         eligible = false;

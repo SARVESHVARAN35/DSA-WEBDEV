@@ -26,12 +26,13 @@ export function startScheduledResultsJob() {
 
       const { data: attempts } = await supabaseAdmin
         .from('attempts')
-        .select('user_id')
+        .select('id')
         .eq('quiz_id', quiz.id)
-        .eq('status', 'submitted');
+        .eq('status', 'submitted')
+        .eq('is_practice', false);
 
       for (const attempt of attempts || []) {
-        await evaluateBadgesForAttempt({ userId: attempt.user_id, quizId: quiz.id });
+        await evaluateBadgesForAttempt({ attemptId: attempt.id });
       }
 
       console.log(`[cron] auto-published results for quiz ${quiz.id}`);

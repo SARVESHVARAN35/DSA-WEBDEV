@@ -6,40 +6,20 @@
 create extension if not exists "pgcrypto";
 
 -- ---------------------------------------------------------
--- PROFILES  (mirrors auth.users, adds app-level fields)
+-- PROFILES  (app-level user records and local session tokens)
 -- ---------------------------------------------------------
 create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text not null,
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
   full_name text,
+  department text,
+  coding_languages text,
+  bio text,
   avatar_url text,
+  session_token text unique,
   role text not null default 'user' check (role in ('user', 'admin')),
   created_at timestamptz not null default now()
 );
-
--- Auto-create a profile row whenever a new auth user signs up (Google OAuth etc.)
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  insert into public.profiles (id, email, full_name, avatar_url)
-  values (
-    new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name'),
-    new.raw_user_meta_data->>'avatar_url'
-  )
-  on conflict (id) do nothing;
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
 
 -- ---------------------------------------------------------
 -- QUIZZES
@@ -75,12 +55,10 @@ create table if not exists public.questions (
   correct_option char(1) not null check (correct_option in ('a','b','c','d')),
   marks int not null default 1 check (marks > 0),
   position int not null default 0,
+  available_at timestamptz,
   created_at timestamptz not null default now()
 );
 
--- ---------------------------------------------------------
--- ATTEMPTS  (one per user per quiz)
--- ---------------------------------------------------------
 create table if not exists public.attempts (
   id uuid primary key default gen_random_uuid(),
   quiz_id uuid not null references public.quizzes(id) on delete cascade,
@@ -90,9 +68,13 @@ create table if not exists public.attempts (
   max_score int not null default 0,
   started_at timestamptz not null default now(),
   submitted_at timestamptz,
-  created_at timestamptz not null default now(),
-  unique (quiz_id, user_id)
+  created_at timestamptz not null default now()
 );
+
+-- Backward-compatible migration for existing databases:
+-- admins can take unlimited practice attempts, while normal users still get one real attempt.
+alter table public.attempts drop constraint if exists attempts_quiz_id_user_id_key;
+alter table public.attempts add column if not exists is_practice boolean not null default false;
 
 -- ---------------------------------------------------------
 -- ATTEMPT ANSWERS
@@ -117,7 +99,7 @@ create table if not exists public.badges (
   description text not null,
   icon text not null default '🏅',
   criteria_type text not null check (criteria_type in
-    ('perfect_score','top_rank','quiz_count','high_scorer')),
+    ('perfect_score','top_rank','quiz_count','high_scorer','correct_answers')),
   criteria_value int not null default 1,
   created_at timestamptz not null default now()
 );
@@ -150,6 +132,17 @@ create index if not exists idx_attempts_quiz on public.attempts(quiz_id);
 create index if not exists idx_attempts_user on public.attempts(user_id);
 create index if not exists idx_attempt_answers_attempt on public.attempt_answers(attempt_id);
 create index if not exists idx_user_badges_user on public.user_badges(user_id);
+
+-- ---------------------------------------------------------
+-- PRIVILEGES
+-- Supabase service-role requests still need PostgreSQL grants. These keep
+-- the backend able to read/write the app tables after schema changes.
+-- ---------------------------------------------------------
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update, delete on all tables in schema public to anon, authenticated, service_role;
+grant usage, select on all sequences in schema public to anon, authenticated, service_role;
+alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant usage, select on sequences to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------
 -- ROW LEVEL SECURITY

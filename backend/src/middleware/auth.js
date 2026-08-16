@@ -1,4 +1,10 @@
-import { supabaseAuth, supabaseAdmin } from '../config/supabaseClient.js';
+import { supabaseAdmin } from '../config/supabaseClient.js';
+
+function sanitizeProfile(profile) {
+  if (!profile) return null;
+  const { session_token, ...safeProfile } = profile;
+  return safeProfile;
+}
 
 /**
  * Verifies the Supabase access token sent by the frontend
@@ -13,40 +19,20 @@ export async function requireAuth(req, res, next) {
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
 
     if (!token) {
-      return res.status(401).json({ error: 'Missing Authorization bearer token.' });
+      return res.status(401).json({ error: 'Missing authorization token.' });
     }
 
-    const { data, error } = await supabaseAuth.auth.getUser(token);
-    if (error || !data?.user) {
+    const { data: profile, error } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('session_token', token)
+      .single();
+
+    if (error || !profile) {
       return res.status(401).json({ error: 'Invalid or expired session.' });
     }
 
-    let { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('*')
-      .eq('id', data.user.id)
-      .single();
-
-    // Safety net: if the on-signup trigger hasn't fired yet, create the
-    // profile row now so a brand-new Google sign-up isn't blocked.
-    if (profileError || !profile) {
-      const { data: created, error: createError } = await supabaseAdmin
-        .from('profiles')
-        .insert({
-          id: data.user.id,
-          email: data.user.email,
-          full_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name,
-          avatar_url: data.user.user_metadata?.avatar_url,
-        })
-        .select()
-        .single();
-      if (createError) {
-        return res.status(500).json({ error: 'Could not initialize user profile.' });
-      }
-      profile = created;
-    }
-
-    req.user = { authUser: data.user, profile };
+    req.user = { profile: sanitizeProfile(profile) };
     next();
   } catch (err) {
     console.error('[auth] unexpected error', err);

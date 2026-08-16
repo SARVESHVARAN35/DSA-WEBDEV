@@ -5,6 +5,9 @@ import { FullPageSpinner } from '../components/ProtectedRoute';
 import PulseRing from '../components/PulseRing';
 import { useCountdown } from '../components/Countdown';
 
+const AUTO_SUBMIT_GRACE_MS = 3000;
+const QUESTION_REFRESH_MS = 12000;
+
 export default function QuizAttempt() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -12,50 +15,102 @@ export default function QuizAttempt() {
   const [quiz, setQuiz] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [attempt, setAttempt] = useState(null);
-  const [answers, setAnswers] = useState({}); // question_id -> option
+  const [answers, setAnswers] = useState({});
   const [current, setCurrent] = useState(0);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
   const submittedRef = useRef(false);
+  const timerRef = useRef(null);
+  const currentQuestionIdRef = useRef(null);
 
   useEffect(() => {
+    currentQuestionIdRef.current = questions[current]?.id ?? null;
+  }, [questions, current]);
+
+  const loadQuiz = useCallback(async () => {
+    try {
+      const quizRes = await api.get(`/quizzes/${id}`);
+      const nextQuestions = quizRes.questions;
+      const activeQuestionId = currentQuestionIdRef.current;
+
+      setQuiz(quizRes.quiz);
+      setQuestions(nextQuestions);
+
+      if (activeQuestionId) {
+        const nextIndex = nextQuestions.findIndex((question) => question.id === activeQuestionId);
+        if (nextIndex >= 0) {
+          setCurrent(nextIndex);
+        } else {
+          setCurrent((c) => Math.min(c, Math.max(0, nextQuestions.length - 1)));
+        }
+      } else {
+        setCurrent((c) => Math.min(c, Math.max(0, nextQuestions.length - 1)));
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    let mounted = true;
+
     (async () => {
       try {
         const startRes = await api.post(`/attempts/quizzes/${id}/start`);
+        if (!mounted) return;
         setAttempt(startRes.attempt);
-        const quizRes = await api.get(`/quizzes/${id}`);
-        setQuiz(quizRes.quiz);
-        setQuestions(quizRes.questions);
+        await loadQuiz();
       } catch (e) {
-        setError(e.message);
+        if (mounted) setError(e.message);
       }
     })();
-  }, [id]);
+
+    return () => {
+      mounted = false;
+    };
+  }, [id, loadQuiz]);
+
+  useEffect(() => {
+    if (!attempt) return undefined;
+    timerRef.current = setInterval(() => {
+      loadQuiz();
+    }, QUESTION_REFRESH_MS);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [attempt, loadQuiz]);
 
   const deadline = useMemo(() => {
-    if (!quiz || !attempt) return null;
-    const byDuration = new Date(attempt.started_at).getTime() + quiz.duration_minutes * 60000;
+    if (!attempt) return null;
+    if (attempt.expires_at) return attempt.expires_at;
+    if (!quiz) return null;
+    const byDuration = new Date(attempt.started_at).getTime() + Number(quiz.duration_minutes || 0) * 60000;
     const byQuizEnd = new Date(quiz.end_time).getTime();
     return new Date(Math.min(byDuration, byQuizEnd)).toISOString();
   }, [quiz, attempt]);
 
   const submit = useCallback(async () => {
-    if (submittedRef.current) return;
+    if (!attempt || submittedRef.current) return;
     submittedRef.current = true;
     setSubmitting(true);
     try {
       await api.post(`/attempts/${attempt.id}/submit`);
+      navigate(`/quizzes/${id}/leaderboard`);
     } catch {
-      // even if already submitted server-side, proceed to results
+      submittedRef.current = false;
+      setSubmitting(false);
+      setError('Could not submit the quiz right now. Please try again.');
     }
-    navigate(`/quizzes/${id}/leaderboard`);
   }, [attempt, id, navigate]);
 
-  const { hours, minutes, seconds, isDone } = useCountdown(deadline || new Date().toISOString());
+  const { hours, minutes, seconds, isDone } = useCountdown(deadline);
 
   useEffect(() => {
-    if (deadline && isDone && attempt) submit();
+    if (!deadline || !isDone || !attempt) return;
+    const timer = setTimeout(() => submit(), AUTO_SUBMIT_GRACE_MS);
+    return () => clearTimeout(timer);
   }, [isDone, deadline, attempt, submit]);
 
   async function selectOption(questionId, option) {
@@ -85,7 +140,7 @@ export default function QuizAttempt() {
         <div>
           <h1 className="font-display text-xl font-bold text-ink">{quiz.title}</h1>
           <p className="text-xs font-semibold uppercase tracking-wide text-slateink">
-            Question {current + 1} of {questions.length} · {answeredCount} answered
+            Question {current + 1} of {questions.length} � {answeredCount} answered
           </p>
         </div>
         <PulseRing
@@ -141,7 +196,7 @@ export default function QuizAttempt() {
           Previous
         </button>
 
-        <span className="text-xs text-slateink">{saving ? 'Saving…' : 'Answers save automatically'}</span>
+        <span className="text-xs text-slateink">{saving ? 'Saving...' : 'Answers save automatically'}</span>
 
         {current < questions.length - 1 ? (
           <button onClick={() => setCurrent((c) => c + 1)} className="btn-primary">
@@ -149,7 +204,7 @@ export default function QuizAttempt() {
           </button>
         ) : (
           <button onClick={submit} disabled={submitting} className="btn-primary">
-            {submitting ? 'Submitting…' : 'Submit quiz'}
+            {submitting ? 'Submitting...' : 'Submit quiz'}
           </button>
         )}
       </div>

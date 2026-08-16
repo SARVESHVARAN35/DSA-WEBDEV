@@ -3,7 +3,7 @@ import Navbar from './components/Navbar';
 import { RequireAuth, RequireAdmin } from './components/ProtectedRoute';
 
 import Home from './pages/Home';
-import Login from './pages/Login';
+import Login from './pages/ProfileLogin';
 import Quizzes from './pages/Quizzes';
 import QuizDetail from './pages/QuizDetail';
 import QuizAttempt from './pages/QuizAttempt';

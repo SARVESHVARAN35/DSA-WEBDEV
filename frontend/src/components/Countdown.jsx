@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
 
 export function useCountdown(targetIso) {
-  const [remainingMs, setRemainingMs] = useState(() => new Date(targetIso).getTime() - Date.now());
+  const getRemainingMs = () => {
+    if (!targetIso) return 0;
+    const target = new Date(targetIso).getTime();
+    return Number.isFinite(target) ? target - Date.now() : 0;
+  };
+
+  const [remainingMs, setRemainingMs] = useState(() => getRemainingMs());
 
   useEffect(() => {
+    setRemainingMs(getRemainingMs());
     const id = setInterval(() => {
-      setRemainingMs(new Date(targetIso).getTime() - Date.now());
+      setRemainingMs(getRemainingMs());
     }, 1000);
     return () => clearInterval(id);
   }, [targetIso]);
@@ -16,7 +23,7 @@ export function useCountdown(targetIso) {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  return { remainingMs: clamped, hours, minutes, seconds, isDone: remainingMs <= 0 };
+  return { remainingMs: clamped, hours, minutes, seconds, isDone: Boolean(targetIso) && remainingMs <= 0 };
 }
 
 export default function Countdown({ targetIso, label }) {

@@ -11,7 +11,11 @@ router.get('/stats', async (_req, res) => {
   const [{ count: userCount }, { count: quizCount }, { count: attemptCount }] = await Promise.all([
     supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }),
     supabaseAdmin.from('quizzes').select('id', { count: 'exact', head: true }),
-    supabaseAdmin.from('attempts').select('id', { count: 'exact', head: true }).eq('status', 'submitted'),
+    supabaseAdmin
+      .from('attempts')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'submitted')
+      .eq('is_practice', false),
   ]);
 
   res.json({ userCount: userCount || 0, quizCount: quizCount || 0, attemptCount: attemptCount || 0 });
@@ -23,6 +27,7 @@ router.get('/quizzes/:id/attempts', async (req, res) => {
     .from('attempts')
     .select('id, status, score, max_score, started_at, submitted_at, profiles(full_name, email)')
     .eq('quiz_id', req.params.id)
+    .eq('is_practice', false)
     .order('score', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });

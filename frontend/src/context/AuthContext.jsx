@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { api } from '../lib/api';
+import { api, getSessionToken, setSessionToken } from '../lib/api';
 
 const AuthContext = createContext(null);
 
@@ -14,47 +13,47 @@ export function AuthProvider({ children }) {
       const { profile } = await api.get('/auth/me');
       setProfile(profile);
     } catch {
+      setSessionToken(null);
+      setSession(null);
       setProfile(null);
     }
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      setSession(data.session);
-      if (data.session) await syncProfile();
-      setLoading(false);
-    });
+    const token = getSessionToken();
+    setSession(token);
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
-      if (newSession) {
+    (async () => {
+      if (token) {
         await syncProfile();
       } else {
         setProfile(null);
       }
-    });
-
-    return () => sub.subscription.unsubscribe();
+      setLoading(false);
+    })();
   }, [syncProfile]);
 
-  const signInWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
+  const completeProfile = async (payload) => {
+    const { profile: savedProfile, token } = await api.post('/auth/session', payload);
+    setSessionToken(token);
+    setSession(token);
+    setProfile(savedProfile);
+    return savedProfile;
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    setSessionToken(null);
+    setSession(null);
+    setProfile(null);
   };
 
   const value = {
     session,
-    user: session?.user || null,
+    user: profile,
     profile,
     isAdmin: profile?.role === 'admin',
     loading,
-    signInWithGoogle,
+    completeProfile,
     signOut,
     refreshProfile: syncProfile,
   };

@@ -15,6 +15,16 @@ async function loadQuizOr404(quizId, res) {
   return quiz;
 }
 
+function attachAttemptDeadline(attempt, quiz) {
+  if (!attempt || !quiz) return attempt;
+  const quizEnd = new Date(quiz.end_time).getTime();
+  const byDuration = new Date(attempt.started_at).getTime() + Number(quiz.duration_minutes || 0) * 60000;
+  return {
+    ...attempt,
+    expires_at: new Date(Math.min(quizEnd, byDuration)).toISOString(),
+  };
+}
+
 // ---------------------------------------------------------------------
 // POST /api/attempts/quizzes/:quizId/start
 // Starts (or resumes) the caller's attempt. Enforced entirely server-side
@@ -31,28 +41,42 @@ router.post('/quizzes/:quizId/start', requireAuth, async (req, res) => {
   if (now < new Date(quiz.start_time)) return res.status(403).json({ error: 'This quiz has not started yet.' });
   if (now > new Date(quiz.end_time)) return res.status(403).json({ error: 'This quiz has already ended.' });
 
+  const isPractice = req.user.profile.role === 'admin';
+
+  if (isPractice) {
+    const { data: attempt, error } = await supabaseAdmin
+      .from('attempts')
+      .insert({ quiz_id: quiz.id, user_id: req.user.profile.id, max_score: quiz.total_points, is_practice: true })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(201).json({ attempt: attachAttemptDeadline(attempt, quiz) });
+  }
+
   const { data: existing } = await supabaseAdmin
     .from('attempts')
     .select('*')
     .eq('quiz_id', quiz.id)
     .eq('user_id', req.user.profile.id)
+    .eq('is_practice', false)
     .maybeSingle();
 
   if (existing) {
     if (existing.status === 'submitted') {
       return res.status(409).json({ error: 'You have already submitted this quiz.', attempt: existing });
     }
-    return res.json({ attempt: existing }); // resume in-progress attempt
+    return res.json({ attempt: attachAttemptDeadline(existing, quiz) }); // resume in-progress attempt
   }
 
   const { data: attempt, error } = await supabaseAdmin
     .from('attempts')
-    .insert({ quiz_id: quiz.id, user_id: req.user.profile.id, max_score: quiz.total_points })
+    .insert({ quiz_id: quiz.id, user_id: req.user.profile.id, max_score: quiz.total_points, is_practice: false })
     .select()
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
-  res.status(201).json({ attempt });
+  res.status(201).json({ attempt: attachAttemptDeadline(attempt, quiz) });
 });
 
 async function loadOwnAttemptOr403(req, res) {
@@ -144,7 +168,7 @@ router.post('/:id/submit', requireAuth, async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
 
   const finalAttempt = await recalculateAttemptScore(attempt.id);
-  const newBadges = await evaluateBadgesForAttempt({ userId: attempt.user_id, quizId: attempt.quiz_id });
+  const newBadges = await evaluateBadgesForAttempt({ attemptId: attempt.id });
 
   res.json({ attempt: finalAttempt, newBadges });
 });
@@ -158,6 +182,7 @@ router.get('/mine', requireAuth, async (req, res) => {
     .from('attempts')
     .select('*, quizzes(id, title, category, results_published, results_publish_at, total_points)')
     .eq('user_id', req.user.profile.id)
+    .eq('is_practice', false)
     .order('created_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
