@@ -56,8 +56,20 @@ create table if not exists public.questions (
   marks int not null default 1 check (marks > 0),
   position int not null default 0,
   available_at timestamptz,
+  question_duration_seconds int not null default 30 check (question_duration_seconds > 0),
   created_at timestamptz not null default now()
 );
+
+-- For a clean reset in Supabase, keep this migration after each fresh schema setup.
+-- This makes sure existing databases also get the per-question time field.
+alter table public.questions add column if not exists question_duration_seconds int not null default 30;
+
+alter table public.questions
+drop constraint if exists questions_question_duration_seconds_check;
+
+alter table public.questions
+add constraint questions_question_duration_seconds_check
+check (question_duration_seconds > 0);
 
 create table if not exists public.attempts (
   id uuid primary key default gen_random_uuid(),
@@ -159,18 +171,23 @@ alter table public.attempt_answers enable row level security;
 alter table public.badges enable row level security;
 alter table public.user_badges enable row level security;
 
+drop policy if exists "profiles are self-readable" on public.profiles;
 create policy "profiles are self-readable" on public.profiles
   for select using (auth.uid() = id);
 
+drop policy if exists "published quizzes are readable" on public.quizzes;
 create policy "published quizzes are readable" on public.quizzes
   for select using (is_published = true);
 
+drop policy if exists "badges are readable by everyone" on public.badges;
 create policy "badges are readable by everyone" on public.badges
   for select using (true);
 
+drop policy if exists "users read their own attempts" on public.attempts;
 create policy "users read their own attempts" on public.attempts
   for select using (auth.uid() = user_id);
 
+drop policy if exists "users read their own badges" on public.user_badges;
 create policy "users read their own badges" on public.user_badges
   for select using (auth.uid() = user_id);
 

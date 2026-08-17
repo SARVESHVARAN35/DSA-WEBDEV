@@ -20,6 +20,7 @@ export default function QuizAttempt() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [questionTimer, setQuestionTimer] = useState(0);
 
   const submittedRef = useRef(false);
   const timerRef = useRef(null);
@@ -96,16 +97,35 @@ export default function QuizAttempt() {
     submittedRef.current = true;
     setSubmitting(true);
     try {
-      await api.post(`/attempts/${attempt.id}/submit`);
-      navigate(`/quizzes/${id}/leaderboard`);
+      const result = await api.post(`/attempts/${attempt.id}/submit`);
+      navigate(`/attempts/${result.attempt?.id || attempt.id}/review`);
     } catch {
       submittedRef.current = false;
       setSubmitting(false);
       setError('Could not submit the quiz right now. Please try again.');
     }
-  }, [attempt, id, navigate]);
+  }, [attempt, navigate]);
 
   const { hours, minutes, seconds, isDone } = useCountdown(deadline);
+
+  const q = questions[current];
+
+  useEffect(() => {
+    if (!q) return;
+    const perQuestionSeconds = Number(q.question_duration_seconds || 30);
+    setQuestionTimer(perQuestionSeconds);
+    const timer = setInterval(() => {
+      setQuestionTimer((prev) => {
+        if (prev <= 1) {
+          setCurrent((currentIndex) => Math.min(currentIndex + 1, questions.length - 1));
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [q, questions.length]);
 
   useEffect(() => {
     if (!deadline || !isDone || !attempt) return;
@@ -128,7 +148,6 @@ export default function QuizAttempt() {
   if (error) return <p className="p-10 text-center text-red-600">{error}</p>;
   if (!quiz || !attempt || questions.length === 0) return <FullPageSpinner />;
 
-  const q = questions[current];
   const answeredCount = Object.keys(answers).length;
   const percentLeft = deadline
     ? Math.max(0, Math.min(100, (((hours * 3600 + minutes * 60 + seconds) * 1000) / (quiz.duration_minutes * 60000)) * 100))
@@ -140,19 +159,25 @@ export default function QuizAttempt() {
         <div>
           <h1 className="font-display text-xl font-bold text-ink">{quiz.title}</h1>
           <p className="text-xs font-semibold uppercase tracking-wide text-slateink">
-            Question {current + 1} of {questions.length} · {answeredCount} answered
+            Question {current + 1} of {questions.length} ï¿½ {answeredCount} answered
           </p>
         </div>
-        <PulseRing
-          size={64}
-          stroke={6}
-          percent={percentLeft}
-          center={
-            <span className="font-mono text-xs font-bold text-ink">
-              {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-            </span>
-          }
-        />
+        <div className="flex items-center gap-3">
+          <div className="card px-3 py-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slateink">This question</div>
+            <div className="font-mono text-sm font-bold text-ink">{String(questionTimer).padStart(2, '0')}s</div>
+          </div>
+          <PulseRing
+            size={64}
+            stroke={6}
+            percent={percentLeft}
+            center={
+              <span className="font-mono text-xs font-bold text-ink">
+                {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+              </span>
+            }
+          />
+        </div>
       </div>
 
       <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-sky">

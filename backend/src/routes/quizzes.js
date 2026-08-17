@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabaseClient.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { evaluateBadgesForAttempt } from '../utils/badges.js';
+import { filterReleasedQuestions } from '../utils/questionSchedule.js';
 
 const router = Router();
 
@@ -12,11 +13,6 @@ function statusOf(quiz, now = new Date()) {
   if (now < start) return 'upcoming';
   if (now >= start && now <= end) return 'live';
   return 'ended';
-}
-
-function isQuestionReleased(question, now = new Date()) {
-  if (!question.available_at) return true;
-  return new Date(question.available_at) <= now;
 }
 
 // ---------------------------------------------------------------------
@@ -56,8 +52,8 @@ router.get('/:id', optionalAuth, async (req, res) => {
   if (!quiz.is_published && !isAdmin) return res.status(404).json({ error: 'Quiz not found.' });
 
   const columns = isAdmin
-    ? 'id, quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, marks, position, available_at'
-    : 'id, quiz_id, question_text, option_a, option_b, option_c, option_d, marks, position, available_at';
+    ? 'id, quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, marks, position, available_at, question_duration_seconds'
+    : 'id, quiz_id, question_text, option_a, option_b, option_c, option_d, marks, position, available_at, question_duration_seconds';
 
   const { data: questions, error: qError } = await supabaseAdmin
     .from('questions')
@@ -66,7 +62,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
     .order('position', { ascending: true });
 
   if (qError) return res.status(500).json({ error: qError.message });
-  const visibleQuestions = isAdmin ? questions : questions.filter((question) => isQuestionReleased(question));
+  const visibleQuestions = isAdmin ? questions : filterReleasedQuestions(questions);
 
   res.json({ quiz: { ...quiz, status: statusOf(quiz) }, questions: visibleQuestions });
 });

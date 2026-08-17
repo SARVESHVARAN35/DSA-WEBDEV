@@ -9,6 +9,7 @@ import QuizDetail from './pages/QuizDetail';
 import QuizAttempt from './pages/QuizAttempt';
 import Leaderboard from './pages/Leaderboard';
 import Dashboard from './pages/Dashboard';
+import AttemptReview from './pages/AttemptReview';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import QuizEditor from './pages/admin/QuizEditor';
 import NotFound from './pages/NotFound';
@@ -36,6 +37,14 @@ export default function App() {
           element={
             <RequireAuth>
               <Dashboard />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/attempts/:id/review"
+          element={
+            <RequireAuth>
+              <AttemptReview />
             </RequireAuth>
           }
         />

@@ -13,7 +13,7 @@ async function refreshQuizTotalPoints(quizId) {
 
 // POST /api/quizzes/:quizId/questions — add a question (admin sets marks/points)
 router.post('/quizzes/:quizId/questions', requireAuth, requireAdmin, async (req, res) => {
-  const { question_text, option_a, option_b, option_c, option_d, correct_option, marks, position, available_at } = req.body;
+  const { question_text, option_a, option_b, option_c, option_d, correct_option, marks, position, available_at, question_duration_seconds } = req.body;
 
   if (!question_text || !option_a || !option_b || !option_c || !option_d || !correct_option) {
     return res.status(400).json({ error: 'question_text, all four options and correct_option are required.' });
@@ -35,6 +35,7 @@ router.post('/quizzes/:quizId/questions', requireAuth, requireAdmin, async (req,
       marks: marks && marks > 0 ? marks : 1,
       position: position ?? 0,
       available_at: available_at || null,
+      question_duration_seconds: question_duration_seconds && Number(question_duration_seconds) > 0 ? Number(question_duration_seconds) : 30,
     })
     .select()
     .single();
@@ -47,9 +48,13 @@ router.post('/quizzes/:quizId/questions', requireAuth, requireAdmin, async (req,
 
 // PUT /api/questions/:id — edit a question (admin)
 router.put('/questions/:id', requireAuth, requireAdmin, async (req, res) => {
-  const allowed = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'marks', 'position', 'available_at'];
+  const allowed = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'marks', 'position', 'available_at', 'question_duration_seconds'];
   const updates = {};
-  for (const key of allowed) if (key in req.body) updates[key] = req.body[key];
+  for (const key of allowed) if (key in req.body) {
+    updates[key] = key === 'question_duration_seconds'
+      ? (Number(req.body[key]) > 0 ? Number(req.body[key]) : 30)
+      : req.body[key];
+  }
 
   const { data, error } = await supabaseAdmin
     .from('questions')

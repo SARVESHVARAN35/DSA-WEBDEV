@@ -80,9 +80,23 @@ export default function Dashboard() {
                       {a.results_visible ? `${a.score} / ${a.max_score}` : 'Pending'}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link to={`/quizzes/${a.quiz_id}/leaderboard`} className="text-xs font-semibold text-cobalt hover:underline">
-                        Leaderboard →
-                      </Link>
+                      {a.status === 'submitted' ? (
+                        <Link to={`/attempts/${a.id}/review`} className="mr-3 text-xs font-semibold text-teal hover:underline">
+                          Review →
+                        </Link>
+                      ) : null}
+                      {a.results_visible ? (
+                        <Link to={`/quizzes/${a.quiz_id}/leaderboard`} className="text-xs font-semibold text-cobalt hover:underline">
+                          Leaderboard →
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() => window.alert('Leaderboard is hidden until the admin publishes results.')}
+                          className="text-xs font-semibold text-slateink/70"
+                        >
+                          Locked
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

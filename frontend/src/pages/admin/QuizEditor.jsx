@@ -37,8 +37,9 @@ export default function QuizEditor({ mode }) {
   const [quiz, setQuiz] = useState(mode === 'create' ? emptyQuiz : null);
   const [questions, setQuestions] = useState([]);
   const [attempts, setAttempts] = useState([]);
-  const [newQuestion, setNewQuestion] = useState(emptyQuestion);
+  const [newQuestion, setNewQuestion] = useState({ ...emptyQuestion, question_duration_seconds: 30 });
   const [publishAt, setPublishAt] = useState('');
+  const [scheduleMode, setScheduleMode] = useState('immediate');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
@@ -52,6 +53,13 @@ export default function QuizEditor({ mode }) {
         setAttempts(a.attempts);
       })
       .catch((e) => setError(e.message));
+  }
+
+  function getDailyQuestionRelease(index) {
+    if (!quiz?.start_time) return '';
+    const base = new Date(quiz.start_time);
+    const target = new Date(base.getTime() + index * 24 * 60 * 60 * 1000);
+    return toLocalInput(target.toISOString());
   }
 
   useEffect(loadQuiz, [id, mode]);
@@ -119,12 +127,19 @@ export default function QuizEditor({ mode }) {
     e.preventDefault();
     setError('');
     try {
+      const nextIndex = questions.length;
+      const releaseInput =
+        scheduleMode === 'daily'
+          ? getDailyQuestionRelease(nextIndex)
+          : newQuestion.available_at;
+
       await api.post(`/quizzes/${id}/questions`, {
         ...newQuestion,
-        position: questions.length,
-        available_at: newQuestion.available_at ? new Date(newQuestion.available_at).toISOString() : null,
+        position: nextIndex,
+        available_at: releaseInput ? new Date(releaseInput).toISOString() : null,
+        question_duration_seconds: Number(newQuestion.question_duration_seconds) || 30,
       });
-      setNewQuestion(emptyQuestion);
+      setNewQuestion({ ...emptyQuestion, question_duration_seconds: 30 });
       loadQuiz();
       flash('Question added.');
     } catch (e2) {
@@ -230,7 +245,7 @@ export default function QuizEditor({ mode }) {
           <div className="card mt-6 p-6">
             <h2 className="font-display text-base font-bold text-ink">Results &amp; leaderboard</h2>
             <p className="mt-1 text-sm text-slateink">
-              Scores stay hidden from users until you publish them — right away, or on a schedule.
+              Scores stay hidden from users until you publish them ï¿½ right away, or on a schedule.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <span className={`badge-chip ${quiz.results_published ? 'bg-teal/15 text-teal' : 'bg-slateink/10 text-slateink'}`}>
@@ -255,7 +270,7 @@ export default function QuizEditor({ mode }) {
           </div>
 
           <div className="card mt-6 p-6">
-            <h2 className="font-display text-base font-bold text-ink">Questions ({questions.length}) · {quiz.total_points} total points</h2>
+            <h2 className="font-display text-base font-bold text-ink">Questions ({questions.length}) ï¿½ {quiz.total_points} total points</h2>
 
             <div className="mt-4 space-y-3">
               {questions.map((q, idx) => (
@@ -264,7 +279,25 @@ export default function QuizEditor({ mode }) {
             </div>
 
             <form onSubmit={addQuestion} className="mt-6 grid gap-3 rounded-xl2 border border-dashed border-ink/15 p-4">
-              <h3 className="text-sm font-bold text-ink">Add a question</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-sm font-bold text-ink">Add a question</h3>
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slateink">
+                  Release mode
+                  <select
+                    className="input !w-auto !py-2 text-xs"
+                    value={scheduleMode}
+                    onChange={(e) => setScheduleMode(e.target.value)}
+                  >
+                    <option value="immediate">Immediate</option>
+                    <option value="daily">Daily unlock</option>
+                  </select>
+                </label>
+              </div>
+              <p className="text-xs text-slateink">
+                {scheduleMode === 'daily'
+                  ? 'Each new question will unlock one day after the previous one, starting from the quiz start time.'
+                  : 'Leave the release date blank to publish this question immediately when the quiz is live.'}
+              </p>
               <textarea
                 required
                 placeholder="Question text"
@@ -285,7 +318,7 @@ export default function QuizEditor({ mode }) {
                   />
                 ))}
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-sm text-slateink">
                   Correct answer
                   <select
@@ -309,12 +342,24 @@ export default function QuizEditor({ mode }) {
                   />
                 </label>
                 <label className="flex items-center gap-2 text-sm text-slateink">
+                  Time per question (sec)
+                  <input
+                    type="number"
+                    min={5}
+                    step={5}
+                    className="input !w-24"
+                    value={newQuestion.question_duration_seconds}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, question_duration_seconds: Number(e.target.value) || 30 })}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slateink">
                   Release at
                   <input
                     type="datetime-local"
                     className="input !w-auto"
                     value={newQuestion.available_at}
                     onChange={(e) => setNewQuestion({ ...newQuestion, available_at: e.target.value })}
+                    disabled={scheduleMode === 'daily'}
                   />
                 </label>
                 <button type="submit" className="btn-primary ml-auto !px-4 !py-2 text-sm">Add question</button>
@@ -384,7 +429,7 @@ function QuestionRow({ index, question, onSave, onDelete }) {
     return (
       <div className="flex items-start justify-between gap-4 rounded-xl2 border border-ink/10 p-4">
         <div>
-          <p className="text-xs font-semibold text-slateink">Q{index + 1} · {question.marks} pt{question.marks > 1 ? 's' : ''}</p>
+          <p className="text-xs font-semibold text-slateink">Q{index + 1} â€¢ {question.marks} pt{question.marks > 1 ? 's' : ''} â€¢ {question.question_duration_seconds || 30}s</p>
           <p className="mt-1 text-sm font-medium text-ink">{question.question_text}</p>
           <p className="mt-1 text-xs text-slateink">
             {question.available_at ? `Releases at ${new Date(question.available_at).toLocaleString()}` : 'Releases immediately'}
@@ -407,11 +452,19 @@ function QuestionRow({ index, question, onSave, onDelete }) {
           <input key={opt} className="input" value={draft[`option_${opt}`]} onChange={(e) => setDraft({ ...draft, [`option_${opt}`]: e.target.value })} />
         ))}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <select className="input !w-auto" value={draft.correct_option} onChange={(e) => setDraft({ ...draft, correct_option: e.target.value })}>
           {['a', 'b', 'c', 'd'].map((o) => <option key={o} value={o}>{o.toUpperCase()}</option>)}
         </select>
         <input type="number" min={1} className="input !w-20" value={draft.marks} onChange={(e) => setDraft({ ...draft, marks: Number(e.target.value) })} />
+        <input
+          type="number"
+          min={5}
+          step={5}
+          className="input !w-24"
+          value={draft.question_duration_seconds || 30}
+          onChange={(e) => setDraft({ ...draft, question_duration_seconds: Number(e.target.value) || 30 })}
+        />
         <input
           type="datetime-local"
           className="input !w-auto"

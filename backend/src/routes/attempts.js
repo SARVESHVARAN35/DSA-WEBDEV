@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabaseClient.js';
 import { requireAuth } from '../middleware/auth.js';
 import { gradeAnswer, recalculateAttemptScore } from '../utils/scoring.js';
 import { evaluateBadgesForAttempt } from '../utils/badges.js';
+import { isQuestionReleased } from '../utils/questionSchedule.js';
 
 const router = Router();
 
@@ -92,6 +93,38 @@ async function loadOwnAttemptOr403(req, res) {
   return attempt;
 }
 
+router.get('/:id/review', requireAuth, async (req, res) => {
+  const attempt = await loadOwnAttemptOr403(req, res);
+  if (!attempt) return;
+
+  const { data: answers, error } = await supabaseAdmin
+    .from('attempt_answers')
+    .select('*, questions(question_text, option_a, option_b, option_c, option_d, correct_option, marks, question_duration_seconds)')
+    .eq('attempt_id', attempt.id)
+    .order('answered_at', { ascending: true });
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  const review = (answers || []).map((row) => ({
+    id: row.id,
+    question_id: row.question_id,
+    question_text: row.questions?.question_text || null,
+    selected_option: row.selected_option,
+    correct_option: row.questions?.correct_option || null,
+    is_correct: row.is_correct,
+    marks_awarded: row.marks_awarded,
+    question_marks: row.questions?.marks || 0,
+    question_duration_seconds: row.questions?.question_duration_seconds || 30,
+    option_a: row.questions?.option_a || null,
+    option_b: row.questions?.option_b || null,
+    option_c: row.questions?.option_c || null,
+    option_d: row.questions?.option_d || null,
+    answered_at: row.answered_at,
+  }));
+
+  res.json({ attempt, review, score: attempt.score, max_score: attempt.max_score });
+});
+
 // ---------------------------------------------------------------------
 // POST /api/attempts/:id/answer  { question_id, selected_option }
 // Every answer is validated against the question row stored in the
@@ -126,6 +159,10 @@ router.post('/:id/answer', requireAuth, async (req, res) => {
 
   if (graded.question.quiz_id !== attempt.quiz_id) {
     return res.status(400).json({ error: 'Question does not belong to this quiz.' });
+  }
+
+  if (!isQuestionReleased(graded.question)) {
+    return res.status(403).json({ error: 'This question is not available yet.' });
   }
 
   const { data: saved, error } = await supabaseAdmin
