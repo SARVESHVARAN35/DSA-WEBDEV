@@ -15,6 +15,14 @@ function statusOf(quiz, now = new Date()) {
   return 'ended';
 }
 
+function nextQuestionAvailableAt(questions, now = new Date()) {
+  const upcoming = (questions || [])
+    .map((question) => question.available_at)
+    .filter((value) => value && new Date(value) > now)
+    .sort((a, b) => new Date(a) - new Date(b));
+  return upcoming[0] || null;
+}
+
 // ---------------------------------------------------------------------
 // GET /api/quizzes — list (published only for normal users, all for admin)
 // ---------------------------------------------------------------------
@@ -64,7 +72,12 @@ router.get('/:id', optionalAuth, async (req, res) => {
   if (qError) return res.status(500).json({ error: qError.message });
   const visibleQuestions = isAdmin ? questions : filterReleasedQuestions(questions);
 
-  res.json({ quiz: { ...quiz, status: statusOf(quiz) }, questions: visibleQuestions });
+  res.json({
+    quiz: { ...quiz, status: statusOf(quiz) },
+    questions: visibleQuestions,
+    total_question_count: questions.length,
+    next_question_available_at: nextQuestionAvailableAt(questions),
+  });
 });
 
 // ---------------------------------------------------------------------

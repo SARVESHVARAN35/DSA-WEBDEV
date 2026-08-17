@@ -8,6 +8,15 @@ import { useCountdown } from '../components/Countdown';
 const AUTO_SUBMIT_GRACE_MS = 3000;
 const QUESTION_REFRESH_MS = 12000;
 
+function formatDateTime(value) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function QuizAttempt() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -15,9 +24,11 @@ export default function QuizAttempt() {
   const [quiz, setQuiz] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [attempt, setAttempt] = useState(null);
+  const [nextQuestionAt, setNextQuestionAt] = useState(null);
   const [answers, setAnswers] = useState({});
   const [current, setCurrent] = useState(0);
   const [error, setError] = useState('');
+  const [waitUntil, setWaitUntil] = useState(null);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [questionTimer, setQuestionTimer] = useState(0);
@@ -38,6 +49,7 @@ export default function QuizAttempt() {
 
       setQuiz(quizRes.quiz);
       setQuestions(nextQuestions);
+      setNextQuestionAt(quizRes.next_question_available_at || null);
 
       if (activeQuestionId) {
         const nextIndex = nextQuestions.findIndex((question) => question.id === activeQuestionId);
@@ -64,7 +76,12 @@ export default function QuizAttempt() {
         setAttempt(startRes.attempt);
         await loadQuiz();
       } catch (e) {
-        if (mounted) setError(e.message);
+        if (!mounted) return;
+        if (e.payload?.next_question_available_at) {
+          setWaitUntil(e.payload.next_question_available_at);
+        } else {
+          setError(e.message);
+        }
       }
     })();
 
@@ -98,13 +115,23 @@ export default function QuizAttempt() {
     setSubmitting(true);
     try {
       const result = await api.post(`/attempts/${attempt.id}/submit`);
+      if (result.partial) {
+        navigate(`/quizzes/${id}`, {
+          replace: true,
+          state: {
+            notice: result.message,
+            nextQuestionAt: result.next_question_available_at,
+          },
+        });
+        return;
+      }
       navigate(`/attempts/${result.attempt?.id || attempt.id}/review`);
     } catch {
       submittedRef.current = false;
       setSubmitting(false);
       setError('Could not submit the quiz right now. Please try again.');
     }
-  }, [attempt, navigate]);
+  }, [attempt, id, navigate]);
 
   const { hours, minutes, seconds, isDone } = useCountdown(deadline);
 
@@ -146,7 +173,41 @@ export default function QuizAttempt() {
   }
 
   if (error) return <p className="p-10 text-center text-red-600">{error}</p>;
-  if (!quiz || !attempt || questions.length === 0) return <FullPageSpinner />;
+  if (waitUntil) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-16">
+        <div className="card p-8 text-center">
+          <h1 className="font-display text-2xl font-bold text-ink">Come again at {formatDateTime(waitUntil)}</h1>
+          <p className="mt-2 text-sm text-slateink">The next scheduled question is not available yet.</p>
+          <button
+            onClick={() => {
+              setWaitUntil(null);
+              window.location.reload();
+            }}
+            className="btn-primary mt-6"
+          >
+            Check again
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (!quiz || !attempt) return <FullPageSpinner />;
+  if (questions.length === 0) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-16">
+        <div className="card p-8 text-center">
+          <h1 className="font-display text-2xl font-bold text-ink">Come again at {formatDateTime(nextQuestionAt || quiz.start_time)}</h1>
+          <p className="mt-2 text-sm text-slateink">
+            The quiz is open, but the next scheduled question is not available yet.
+          </p>
+          <button onClick={loadQuiz} className="btn-primary mt-6">
+            Check again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const answeredCount = Object.keys(answers).length;
   const percentLeft = deadline

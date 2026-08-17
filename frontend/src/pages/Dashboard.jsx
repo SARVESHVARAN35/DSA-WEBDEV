@@ -55,6 +55,38 @@ export default function Dashboard() {
       </section>
 
       <section className="mt-10">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="font-display text-lg font-bold text-ink">Review tests</h2>
+            <p className="mt-1 text-sm text-slateink">Reopen submitted quizzes and check attempted, wrong, and skipped questions.</p>
+          </div>
+          <Link to="/reviews" className="text-sm font-semibold text-cobalt hover:underline">
+            View all
+          </Link>
+        </div>
+        {submitted.length === 0 ? (
+          <p className="card mt-4 p-6 text-sm text-slateink">Submitted quizzes will appear here.</p>
+        ) : (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {submitted.slice(0, 4).map((a) => (
+              <div key={a.id} className="card p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slateink">{a.category}</p>
+                <h3 className="mt-2 font-display text-base font-bold text-ink">{a.quiz_title}</h3>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <p className="font-mono text-sm font-semibold text-ink">
+                    {a.results_visible ? `${a.score} / ${a.max_score}` : 'Score pending'}
+                  </p>
+                  <Link to={`/attempts/${a.id}/review`} className="btn-secondary !px-3 !py-2 text-xs">
+                    Review
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-10">
         <h2 className="font-display text-lg font-bold text-ink">Quiz history</h2>
         {attempts.length === 0 ? (
           <p className="card mt-4 p-6 text-sm text-slateink">

@@ -23,6 +23,7 @@ export default function Navbar() {
         <nav className="hidden items-center gap-1 md:flex">
           <NavLink to="/quizzes" className={linkClass}>Quizzes</NavLink>
           {user && <NavLink to="/dashboard" className={linkClass}>My Dashboard</NavLink>}
+          {user && <NavLink to="/reviews" className={linkClass}>Reviews</NavLink>}
           {isAdmin && <NavLink to="/admin" className={linkClass}>Admin</NavLink>}
         </nav>
 
@@ -52,7 +53,7 @@ export default function Navbar() {
             </div>
           ) : (
             <Link to="/login" className="btn-primary !px-4 !py-2 text-sm">
-              Create profile
+              Log in
             </Link>
           )}
         </div>

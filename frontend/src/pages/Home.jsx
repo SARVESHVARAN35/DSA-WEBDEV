@@ -36,8 +36,7 @@ export default function Home() {
                 <Link to="/quizzes" className="btn-primary">Browse quizzes</Link>
               ) : (
                 <Link to="/login" className="btn-primary flex items-center gap-2">
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-white/20 text-xs font-bold">+</span>
-                  Create your profile
+                  Log in or create profile
                 </Link>
               )}
               <Link to="/quizzes" className="btn-secondary !border-white/20 !bg-transparent !text-white hover:!bg-white/10">

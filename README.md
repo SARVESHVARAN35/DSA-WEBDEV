@@ -4,7 +4,7 @@ A full-stack quiz platform with profile-based sign-in, timed quizzes, server-sid
 
 - Backend: Node.js + Express + Supabase (service-role key, `.env`-based credentials)
 - Frontend: React (Vite) + Tailwind, blue Intellexa theme
-- Auth: App-managed profile session tokens
+- Auth: App-managed profile passwords and session tokens
 - Database: Supabase (Postgres)
 
 ```
@@ -26,8 +26,9 @@ intellexa-quiz/
 ## 2. Profile sign-in
 
 1. No external OAuth provider is required.
-2. The login page asks for name, email, department, coding languages, and a short bio.
-3. Submitting the form creates or updates the profile and stores a local session token.
+2. New users create a profile with name, email, password, department, coding languages, and a short bio.
+3. Returning users log in with the email and password they used when creating the profile.
+4. Passwords are hashed by the backend; the browser only stores a local session token.
 
 ## 3. Backend setup
 
@@ -61,7 +62,7 @@ Once you're an admin, you can promote/demote other users from `/admin` - the `PO
 
 ## How the key features work
 
-- Sign in / sign up - one profile form creates or updates a `profiles` row and issues a local session token stored in the browser.
+- Sign in / sign up - profile creation stores a server-side password hash, login verifies that password, and both flows issue a local session token stored in the browser.
 - Answer validation - every submitted answer is graded in `backend/src/utils/scoring.js` against the `correct_option` stored in the database. The API never sends `correct_option` to non-admins, and never trusts a correctness/marks value from the client.
 - Points - admins set `marks` per question when adding it; the quiz's `total_points` is recomputed automatically.
 - Timed attendance - a quiz can only be started while `start_time <= now <= end_time`. Once started, the effective deadline is `min(quiz.end_time, attempt.started_at + duration_minutes)`, enforced on every `/answer` and `/submit` call - not just in the UI.

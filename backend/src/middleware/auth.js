@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabaseClient.js';
 
 function sanitizeProfile(profile) {
   if (!profile) return null;
-  const { session_token, ...safeProfile } = profile;
+  const { session_token, password_hash, ...safeProfile } = profile;
   return safeProfile;
 }
 

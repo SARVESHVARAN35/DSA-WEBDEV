@@ -41,6 +41,14 @@ export function AuthProvider({ children }) {
     return savedProfile;
   };
 
+  const login = async (payload) => {
+    const { profile: savedProfile, token } = await api.post('/auth/login', payload);
+    setSessionToken(token);
+    setSession(token);
+    setProfile(savedProfile);
+    return savedProfile;
+  };
+
   const signOut = async () => {
     setSessionToken(null);
     setSession(null);
@@ -54,6 +62,7 @@ export function AuthProvider({ children }) {
     isAdmin: profile?.role === 'admin',
     loading,
     completeProfile,
+    login,
     signOut,
     refreshProfile: syncProfile,
   };

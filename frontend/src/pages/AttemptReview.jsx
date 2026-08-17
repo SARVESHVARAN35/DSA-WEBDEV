@@ -18,13 +18,15 @@ export default function AttemptReview() {
   if (error) return <p className="p-10 text-center text-red-600">{error}</p>;
   if (!data) return <FullPageSpinner />;
 
-  const correctCount = data.review.filter((item) => item.is_correct).length;
-  const wrongCount = data.review.length - correctCount;
+  const isAttempted = (item) => item.is_attempted ?? Boolean(item.selected_option);
+  const correctCount = data.review.filter((item) => isAttempted(item) && item.is_correct).length;
+  const notAttemptedCount = data.review.filter((item) => !isAttempted(item)).length;
+  const wrongCount = data.review.filter((item) => isAttempted(item) && !item.is_correct).length;
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
-      <Link to="/dashboard" className="text-sm font-semibold text-cobalt hover:underline">
-        ← Back to dashboard
+      <Link to="/reviews" className="text-sm font-semibold text-cobalt hover:underline">
+        Back to reviews
       </Link>
 
       <h1 className="mt-3 font-display text-3xl font-bold text-ink">Answer review</h1>
@@ -32,38 +34,26 @@ export default function AttemptReview() {
         Score: <span className="font-semibold text-ink">{data.score} / {data.max_score}</span>
       </p>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <div className="card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slateink">Correct</p>
-          <p className="mt-2 text-2xl font-bold text-teal">{correctCount}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slateink">Wrong</p>
-          <p className="mt-2 text-2xl font-bold text-red-600">{wrongCount}</p>
-        </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <Stat label="Correct" value={correctCount} className="text-teal" />
+        <Stat label="Wrong" value={wrongCount} className="text-red-600" />
+        <Stat label="Not attempted" value={notAttemptedCount} className="text-slateink" />
       </div>
 
       <div className="mt-6 space-y-4">
         {data.review.map((item, index) => {
-          const options = ['a', 'b', 'c', 'd']
-            .map((letter) => ({
-              letter,
-              text: item[`option_${letter}`],
-              isCorrect: item.correct_option === letter,
-              isSelected: item.selected_option === letter,
-            }));
+          const options = ['a', 'b', 'c', 'd'].map((letter) => ({
+            letter,
+            text: item[`option_${letter}`],
+            isCorrect: item.correct_option === letter,
+            isSelected: item.selected_option === letter,
+          }));
 
           return (
-            <div key={item.id} className="card p-5">
+            <div key={item.question_id} className="card p-5">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-lg font-bold text-ink">Q{index + 1}</h2>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    item.is_correct ? 'bg-teal/15 text-teal' : 'bg-red-50 text-red-600'
-                  }`}
-                >
-                  {item.is_correct ? `Correct (+${item.marks_awarded})` : `Incorrect (${item.marks_awarded} pts)`}
-                </span>
+                <StatusBadge item={item} isAttempted={isAttempted(item)} />
               </div>
 
               <p className="mt-3 text-sm font-medium text-ink">{item.question_text}</p>
@@ -75,7 +65,7 @@ export default function AttemptReview() {
 
                   if (isCorrect) {
                     variant = 'border-teal bg-teal/10 text-teal';
-                    badge = '✓ correct answer';
+                    badge = 'Correct answer';
                   } else if (isSelected) {
                     variant = 'border-red-300 bg-red-50 text-red-700';
                     badge = 'Your answer';
@@ -92,7 +82,7 @@ export default function AttemptReview() {
               </div>
 
               <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slateink">
-                {item.is_correct ? 'You answered correctly.' : `You answered ${item.selected_option?.toUpperCase() || 'nothing'} — the correct answer is ${item.correct_option?.toUpperCase()}.`}
+                <ReviewNote item={item} isAttempted={isAttempted(item)} />
               </div>
             </div>
           );
@@ -100,4 +90,51 @@ export default function AttemptReview() {
       </div>
     </div>
   );
+}
+
+function Stat({ label, value, className }) {
+  return (
+    <div className="card p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slateink">{label}</p>
+      <p className={`mt-2 text-2xl font-bold ${className}`}>{value}</p>
+    </div>
+  );
+}
+
+function StatusBadge({ item, isAttempted }) {
+  if (!isAttempted) {
+    return (
+      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slateink">
+        Not attempted
+      </span>
+    );
+  }
+
+  if (item.is_correct) {
+    return (
+      <span className="rounded-full bg-teal/15 px-2.5 py-1 text-xs font-semibold text-teal">
+        Correct (+{item.marks_awarded})
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600">
+      Incorrect ({item.marks_awarded} pts)
+    </span>
+  );
+}
+
+function ReviewNote({ item, isAttempted }) {
+  const correct = item.correct_option?.toUpperCase();
+
+  if (!isAttempted) {
+    return <>You did not attempt this question. The correct answer is {correct}.</>;
+  }
+
+  if (item.is_correct) {
+    return <>You answered correctly.</>;
+  }
+
+  return <>You answered {item.selected_option?.toUpperCase()} - the correct answer is {correct}.</>;
 }

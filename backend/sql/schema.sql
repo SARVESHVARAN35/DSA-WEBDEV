@@ -16,10 +16,15 @@ create table if not exists public.profiles (
   coding_languages text,
   bio text,
   avatar_url text,
+  password_hash text,
   session_token text unique,
   role text not null default 'user' check (role in ('user', 'admin')),
   created_at timestamptz not null default now()
 );
+
+-- Backward-compatible migration for existing databases:
+-- stores the server-side hash for profile password login.
+alter table public.profiles add column if not exists password_hash text;
 
 -- ---------------------------------------------------------
 -- QUIZZES
